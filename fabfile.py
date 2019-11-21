@@ -1,7 +1,8 @@
 from fabric import task
 from os.path import basename, isfile
 import tempfile
-import os 
+import os
+import typing as t
 
 TEMP_DIR = "/tmp"
 
@@ -45,3 +46,42 @@ def build_git_artifact(context, path=None):
             context.run(tar_cmd)
 
         print(f"Created the artifact {tar_file_name}")
+
+
+@task(name="instances")
+def show_instances(context, region="us-west-1"):
+    """
+    Show information about EC2 Instances
+    """
+
+    instances = _get_instances(region_name=region)
+
+    tmpl = "{:>20}  {:16}  {}"
+    print(tmpl.format("Instance ID", "Public IP", "Launch Time"))
+    for instance in instances:
+        print(tmpl.format(instance.id, instance.public_ip_address, str(instance.launch_time)[:16]))
+
+@task(name="ips")
+def show_ips(context, region="us-west-1"):
+    """
+    Show just IP information about EC2 Instances
+    """
+
+    print(' '.join(_get_ips(region_name=region)))
+
+
+def _get_ips(region_name: str) -> t.List:
+
+    return [i.public_ip_address for i in _get_instances(region_name)]
+
+
+def _get_instances(region_name: str) -> t.List:
+    import boto3
+
+    ec2 = boto3.resource('ec2', region_name=region_name)
+    instances = ec2.instances.filter(Filters=[{
+        'Name': 'instance-state-name',
+        'Values': ['running']}]
+    )
+
+    return instances

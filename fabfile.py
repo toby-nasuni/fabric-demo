@@ -6,8 +6,12 @@ import typing as t
 from fabric import Connection
 
 TEMP_DIR = "/tmp"
+DEFAULT_ENV = "test"
 DEFAULT_REGION = "us-west-1"
 DEFAULT_USER = "ubuntu"
+DEFAULT_STACK = "tmodel1"
+DEFAULT_PREFIX = "nasuni-noc-source"
+S3_BUCKET_PATH = f"{DEFAULT_PREFIX}-{DEFAULT_ENV}-{DEFAULT_REGION}"
 
 
 @task(name="build")
@@ -97,15 +101,40 @@ def restart_apache(context, region=DEFAULT_REGION, ip=None):
         cnx.sudo(f"systemctl restart flask.service")
 
 
+@task(name="upload")
+def upload_git_artifact(context, file):
+    """
+    Upload an artifact to S3 for later deployment
+    """
+    s3 = _aws_session().resource('s3')
+
+    file_path = os.path.abspath(file)
+    if not os.path.exists(file_path):
+        print(f"Path {file_path} does not exist")
+        return
+
+    file_name = os.path.basename(file_path)
+    s3_key = f"{DEFAULT_STACK}-{DEFAULT_REGION}/{file_name}"
+    s3.meta.client.upload_file(file_path, S3_BUCKET_PATH, s3_key)
+
+
+def _aws_session(region_name=DEFAULT_REGION):
+    import boto3
+
+    session = boto3.session.Session(region_name=region_name)
+
+    return session
+
+
 def _get_ips(region_name: str) -> t.List:
 
     return [i.public_ip_address for i in _get_instances(region_name)]
 
 
 def _get_instances(region_name: str) -> t.List:
-    import boto3
 
-    ec2 = boto3.resource('ec2', region_name=region_name)
+
+    ec2 = _aws_session().resource('ec2', region_name=region_name)
     instances = ec2.instances.filter(Filters=[{
         'Name': 'instance-state-name',
         'Values': ['running']}]

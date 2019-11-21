@@ -24,3 +24,12 @@ Add some tasks that will use fabric's remote shell features.
 fab instances --show-uptime
 fab restart-flask
 ```
+
+## Upload Artifacts to S3
+
+Leverage some work we've done already and upload an artifact to S3, so that it is downloaded when an instance starts.
+
+
+```
+fab upload --file=/tmp/python-test-development.tgz
+```

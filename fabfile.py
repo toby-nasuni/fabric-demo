@@ -3,8 +3,12 @@ from os.path import basename, isfile
 import tempfile
 import os
 import typing as t
+from fabric import Connection
 
 TEMP_DIR = "/tmp"
+DEFAULT_REGION = "us-west-1"
+DEFAULT_USER = "ubuntu"
+
 
 @task(name="build")
 def build_git_artifact(context, path=None):
@@ -49,25 +53,48 @@ def build_git_artifact(context, path=None):
 
 
 @task(name="instances")
-def show_instances(context, region="us-west-1"):
+def show_instances(context, region=DEFAULT_REGION, show_uptime=False):
     """
     Show information about EC2 Instances
     """
 
     instances = _get_instances(region_name=region)
 
-    tmpl = "{:>20}  {:16}  {}"
-    print(tmpl.format("Instance ID", "Public IP", "Launch Time"))
+    tmpl = "{id:>20}  {ip:16}  {lt:<16}"
+    if show_uptime:
+        tmpl += "  {uptime}"
+    print(tmpl.format(id="Instance ID", ip="Public IP", lt="Launch Time", uptime="Uptime"))
+    uptime = None
     for instance in instances:
-        print(tmpl.format(instance.id, instance.public_ip_address, str(instance.launch_time)[:16]))
+        ip_address = instance.public_ip_address
+        if show_uptime:
+            try:
+                cnx = Connection(ip_address, user=DEFAULT_USER)
+                uptime = cnx.run("uptime", hide=True).stdout.strip()
+            except:
+                pass
+        print(tmpl.format(id=instance.id, ip=ip_address, lt=str(instance.launch_time)[:16], uptime=uptime))
 
 @task(name="ips")
-def show_ips(context, region="us-west-1"):
+def show_ips(context, region=DEFAULT_REGION):
     """
     Show just IP information about EC2 Instances
     """
 
     print(' '.join(_get_ips(region_name=region)))
+
+
+@task(name="restart", aliases=['restart-flask'])
+def restart_apache(context, region=DEFAULT_REGION, ip=None):
+    """
+    Restart the application on the servers
+    """
+    for ip_address in _get_ips(region_name=region):
+        if ip and ip_address != ip:
+            continue
+        cnx = Connection(ip_address, user=DEFAULT_USER)
+        print(f"Restart on {ip_address}")
+        cnx.sudo(f"systemctl restart flask.service")
 
 
 def _get_ips(region_name: str) -> t.List:

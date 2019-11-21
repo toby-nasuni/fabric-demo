@@ -56,6 +56,22 @@ def build_git_artifact(context, path=None):
         print(f"Created the artifact {tar_file_name}")
 
 
+@task(name="deploy")
+def deploy_artifact(context, region=DEFAULT_REGION, artifact="python-test-development.tgz", ip=None):
+    """
+    Deploy the latest version of the artifact
+    """
+
+    s3_path = _gen_artifact_s3_key(artifact)
+    for ip_address in _get_ips(region_name=region):
+        if ip and ip_address != ip:
+            continue
+        cnx = Connection(ip_address, user=DEFAULT_USER)
+        print(f"\033[95mDeploying to {ip_address} \033[0m")
+        cnx.put("deploy.sh")
+        cnx.run(f"./deploy.sh 's3://{S3_BUCKET_PATH}/{s3_path}'")
+
+
 @task(name="instances")
 def show_instances(context, region=DEFAULT_REGION, show_uptime=False):
     """
@@ -113,9 +129,9 @@ def upload_git_artifact(context, file):
         print(f"Path {file_path} does not exist")
         return
 
-    file_name = os.path.basename(file_path)
-    s3_key = f"{DEFAULT_STACK}-{DEFAULT_REGION}/{file_name}"
+    s3_key = _gen_artifact_s3_key(file_path)
     s3.meta.client.upload_file(file_path, S3_BUCKET_PATH, s3_key)
+    print(f"Uploaded artifact to s3://{S3_BUCKET_PATH}/{s3_key}")
 
 
 def _aws_session(region_name=DEFAULT_REGION):
@@ -124,6 +140,11 @@ def _aws_session(region_name=DEFAULT_REGION):
     session = boto3.session.Session(region_name=region_name)
 
     return session
+
+
+def _gen_artifact_s3_key(file_name: str) -> str:
+    file_name = os.path.basename(file_name)
+    return f"{DEFAULT_STACK}-{DEFAULT_REGION}/{file_name}"
 
 
 def _get_ips(region_name: str) -> t.List:

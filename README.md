@@ -33,3 +33,7 @@ Leverage some work we've done already and upload an artifact to S3, so that it i
 ```
 fab upload --file=/tmp/python-test-development.tgz
 ```
+
+## Uploading and Running a Script using Fabric
+
+Now that the new code has been uploaded to S3 ( via CI/CD of course! ), let's deploy it using a new fabic task that runs a bash script.
